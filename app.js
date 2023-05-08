@@ -1,65 +1,45 @@
 const mongoose = require('mongoose');
 const xlsx = require('xlsx');
-const Candidate = require('./models/candidate'); // Replace with your candidate model
+const multer  = require('multer');
+const upload = multer({ dest: 'uploads/' });
+const express = require('express');
+const ejsMate = require('ejs-mate');
+const path = require('path');
 
-// Connect to MongoDB database
-dbUrl = 'mongodb+srv://gowthamtupili:pK4CEjuiN8nhDSJ4@cluster0.aqi43o8.mongodb.net/test';
-
-
-  mongoose.connect(dbUrl)
-  .then(() => {
-      console.log("Database Connected!!!");
-  })
-  .catch(err => {
-      console.log("OH NO ERROR!")
-      console.log(err);  
-  });
-
-// Load Excel file and get candidate data
-const workbook = xlsx.readFile('./data/Klimb_Assignment.xlsx');
-const worksheet = workbook.Sheets['Sheet1'];
-const candidates = xlsx.utils.sheet_to_json(worksheet);
-
-// console.log(candidates[0]);
+const app = express();
 
 
-async function deleteCandidates() {
-  await Candidate.deleteMany({});
-}
+const Candidate = require('./models/candidate'); 
+const controlCandidate = require('./controllers/file');
 
 
 
-// Add candidates to MongoDB database
-async function addCandidates() {
-  for (let candidate of candidates) {
-    const newObj = {
-      name: candidate['Name of the Candidate'],
-      email: candidate.Email,
-      mobile: candidate['Mobile No.'],
-      dob: candidate['Date of Birth'],
-      work_exp: candidate['Work Experience'],
-      resume_title: candidate['Resume Title'],
-      current_location: candidate['Current Location'],
-      postal_address: candidate['Postal Address'],
-      current_employer: candidate['Current Employer'],
-      current_designation: candidate['Current Designation'],
-    }
-    let singlePerson = await Candidate.find({email: candidate.Email}).exec();
-    // console.log(singlePerson);
-    if(singlePerson != null) {
-      const newCandidate = new Candidate(newObj);
-      await newCandidate.save();
-      console.log(`Added candidate ${newCandidate.name}`);
-    }
-    
-  }
-  // console.log(`Added ${candidates.length} candidates to the database`);
-  // mongoose.disconnect();
-}
+app.engine('ejs',ejsMate);
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'))
+  
 
 
-// To delete previous data from mongodb cloud.
-deleteCandidates();
+app.get('/', (req, res) => {
+  res.render('home')
+});
 
-// To add candidates.
-addCandidates();
+app.post('/upload', upload.single('file'), controlCandidate.postFile);
+
+
+app.all('*', (req,res,next) => {
+  next(new ExpressError('Page Not Found', 404))
+})
+
+app.use((err,req,res,next) => {
+  const { statusCode = 500 } = err;
+  if(!err.message) err.message = `Oh no, Something went wrong!`
+  res.status(statusCode).render('error',{ err });
+  // res.send('Oops! Something went wrong!!');
+})
+
+
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Serving on port ${port}`)
+})
